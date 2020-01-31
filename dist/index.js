@@ -208,8 +208,8 @@ class Aragon {
     await this.initAcl(Object.assign({
       aclAddress
     }, options.acl));
-    await this.initIdentityProviders();
     this.initApps();
+    await this.initIdentityProviders();
     this.initForwarders();
     this.initAppIdentifiers();
     this.initNetwork();
@@ -825,6 +825,9 @@ class Aragon {
       name: 'local',
       provider: new _identity.LocalIdentityProvider()
     }, {
+      name: 'addressBook',
+      provider: new _identity.AddressBookIdentityProvider(this.apps, this.cache)
+    }, {
       name: '3box',
       provider: new _identity.ThreeBoxIdentityProvider()
     }]; // TODO: detect other installed providers
@@ -876,16 +879,17 @@ class Aragon {
    */
 
 
-  resolveAddressIdentity(address) {
-    const providerName = '3box'; // TODO - get provider
+  resolveAddressIdentity(address, providerName = null) {
+    const providerNames = providerName ? [providerName] : ['local', 'addressBook', '3box'];
+    return (0, _rxjs.from)(providerNames).pipe((0, _operators.map)(providerName => {
+      const provider = this.identityProviderRegistrar.get(providerName);
 
-    const provider = this.identityProviderRegistrar.get(providerName);
+      if (provider && typeof provider.resolve === 'function') {
+        return provider.resolve(address);
+      }
 
-    if (provider && typeof provider.resolve === 'function') {
-      return provider.resolve(address);
-    }
-
-    return Promise.reject(new Error("Provider (".concat(providerName, ") not installed")));
+      return Promise.reject(new Error("Provider (".concat(providerName, ") not installed")));
+    }), (0, _operators.flatMap)(unresolvedAddress => (0, _rxjs.from)(unresolvedAddress)), (0, _operators.skipWhile)(entryData => !entryData), (0, _operators.defaultIfEmpty)(null), (0, _operators.first)()).toPromise();
   }
   /**
    * Search identities based on a term
@@ -895,16 +899,20 @@ class Aragon {
    */
 
 
-  searchIdentities(searchTerm) {
-    const providerName = 'local'; // TODO - get provider
+  async searchIdentities(searchTerm) {
+    const providerNames = ['local', 'addressBook'];
+    const resolvedResults = await Promise.all(providerNames.map(providerName => {
+      const provider = this.identityProviderRegistrar.get(providerName);
 
-    const provider = this.identityProviderRegistrar.get(providerName);
+      if (provider && typeof provider.search === 'function') {
+        return provider.search(searchTerm);
+      }
 
-    if (provider && typeof provider.search === 'function') {
-      return provider.search(searchTerm);
-    }
-
-    return Promise.reject(new Error("Provider (".concat(providerName, ") not installed")));
+      return Promise.reject(new Error("Provider (".concat(providerName, ") not installed")));
+    }));
+    return resolvedResults.reduce((combinedResults, providerResult) => {
+      return [...combinedResults, ...providerResult];
+    }, []);
   }
   /**
    * Request an identity modification using the highest priority provider.

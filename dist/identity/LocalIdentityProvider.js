@@ -38,7 +38,8 @@ class LocalIdentityProvider extends _AddressIdentityProvider.default {
 
   resolve(address) {
     address = address.toLowerCase();
-    return this.identityCache.get(address);
+    const cache = this.identityCache.get(address);
+    return cache;
   }
   /**
    * Modify the locally-stored label of an address
@@ -60,7 +61,8 @@ class LocalIdentityProvider extends _AddressIdentityProvider.default {
     address = address.toLowerCase();
     const metadata = {
       name,
-      createdAt
+      createdAt,
+      source: 'local'
     }; // First save it in the cache
 
     await this.identityCache.set(address, metadata);

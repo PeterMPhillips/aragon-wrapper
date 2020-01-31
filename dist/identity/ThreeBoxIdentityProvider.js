@@ -38,22 +38,18 @@ class ThreeBoxIdentityProvider extends _AddressIdentityProvider.default {
    * @return {Promise} Resolved metadata or rejected error
    */
   async resolve(address) {
-    if (!address) {
-      throw new Error('address is required when resolving a 3box identity');
-    }
-
-    if (!(0, _web3Utils.isAddress)(address)) {
-      throw new Error('invalid address passed to 3box identity resolver');
-    }
+    if (!address || !(0, _web3Utils.isAddress)(address)) return null;
 
     try {
       const {
         data
       } = await _axios.default.get("".concat(BOX_SERVER_URL, "/profile?address=").concat(address.toLowerCase()));
+      if (!data.name) return null;
       return {
         createdAt: null,
-        name: data.name || address,
-        imageCid: extractImgHash(data.image)
+        name: data.name,
+        source: '3box',
+        image: extractImgHash(data.image)
       };
     } catch (err) {
       // assume errors from 3box means the identity does not exist so we dont slow down any apps
